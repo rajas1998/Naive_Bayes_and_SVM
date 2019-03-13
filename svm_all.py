@@ -6,6 +6,7 @@ from svmutil import *
 from scipy.spatial.distance import pdist, squareform
 import scipy
 from sklearn.model_selection import train_test_split
+import sys
 
 def read_csv(filename):
 	f = open(filename,"r")
@@ -57,21 +58,30 @@ def fit_linear(x_in, y_in, c):
 
 def gaussian_multiply(x_in,y_in,alphas,non_zeros,gamma,x):
 	ret = 0.0
-	for i in non_zeros:
-		ret += alphas[i]*y_in[i]*math.exp((-1)*gamma*(np.linalg.norm(x_in[i]-x)**2))
-	return ret
+	# print (x_in.shape)
+	m = x_in.shape[0]
+	# print (x.reshape(1,len(x)).shape)
+	tmp = np.sum((x_in - x)**2, axis = 1)
+	tmp = scipy.exp((-1) * gamma * tmp).reshape(m,1) * alphas.reshape(m,1) * y_in.reshape(m,1)
+	# print ("Temp ",tmp.shape)
+	# sys.exit() \
+	# for i in non_zeros:
+	# 	# ret += alphas[i]*y_in[i]*math.exp((-1)*gamma*(np.linalg.norm(x_in[i]-x)**2))
+	# 	ret += tmp[i]
+	# print (ret)
+	return np.sum(tmp)
 def fit_gaussian(x_in, y_in, c, gamma): 
 	m_in = len(y_in)
-	print (x_in.shape)
+	# print (x_in.shape)
 	start = time.time()
 	K = squareform(pdist(x_in, 'euclidean'))
 	K = scipy.exp((-1) * (K ** 2) * gamma)
 	yv = y_in.reshape(-1, 1)
 	ydash = np.matmul(yv,np.transpose(yv))
 	K = K * ydash
-	print (ydash.shape)
-	print (K.shape)
-	print (K)
+	# print (ydash.shape)
+	# print (K.shape)
+	# print (K)
 	# K = np.zeros((m_in,m_in))
 	# for i in range(m_in):
 	# 	# print i
@@ -89,7 +99,7 @@ def fit_gaussian(x_in, y_in, c, gamma):
 	A = A.astype(float)
 	A = matrix(A)
 	b = matrix(np.zeros(1))
-	solvers.options['show_progress'] = True
+	solvers.options['show_progress'] = False
 	sol = solvers.qp(P, q, G, h, A, b)
 	alphas = np.array(sol['x'])
 	non_zeros = []
@@ -128,16 +138,27 @@ def test_accuracy_gaussian(x,y,b,alphas,non_zeros,gamma,x_in,y_in):
 			cnt += 1
 	return (float(cnt)/len(y_in))
 
+def prediction_gaussian(x,y,b,alphas,non_zeros,gamma,x_in,y_in):
+	pred_y = []
+	for i in range(len(x_in)):
+		if (gaussian_multiply(x,y,alphas,non_zeros,gamma,x_in[i]) + b >= 0):
+			pred_y.append(1)
+		else :
+			pred_y.append(-1)
+		# print (i)
+	return pred_y
+
 x_train, y_train = read_csv("mnist/train.csv")
 x_test, y_test = read_csv("mnist/test.csv")
 
 # First part
-# x_a, y_a = dual_class(x_train, y_train, 5, 6)
+# x_a, y_a = dual_class(x_train, y_train, 4, 5)
 # start = time.time()
 # alpha, w, b = fit_linear(x_a, y_a, 1.0)
+# print ("W and b are ",w,b)
 # end = time.time()
 # print "Time taken for linear is ", (end - start)
-# x_test_a, y_test_a = dual_class(x_test, y_test, 5, 6)
+# x_test_a, y_test_a = dual_class(x_test, y_test, 4, 5)
 # num_sup = 0
 # print "The support vectors are:"
 # for i in range(len(y_a)):
@@ -165,8 +186,11 @@ x_test, y_test = read_csv("mnist/test.csv")
 # 		num_sup += 1
 # print
 # print "The number of support vectors are ",num_sup
+# start = time.time()
 # print "The training set accuracy is", test_accuracy_gaussian(x_a,y_a,b,alphas,non_zeros,gamma, x_a, y_a)
 # print "The test set accuracy is", test_accuracy_gaussian(x_a, y_a, b, alphas, non_zeros, gamma, x_test_a, y_test_a)
+# end = time.time()
+# print ("The time taken is ", end - start)
 
 #Third part
 # x_a, y_a = dual_class(x_train, y_train, 5, 6)
@@ -194,66 +218,96 @@ x_test, y_test = read_csv("mnist/test.csv")
 # p_label, p_acc, p_val = svm_predict(y_test_a, x_test_a, m)
 
 #Q2a
-# models = []
-# for i in range(10):
-# 	for j in range(i+1,10):
-# 		print i, ",",j,":- "
-# 		x_a, y_a = dual_class(x_train, y_train, i, j)
-# 		prob  = svm_problem(y_a, x_a)
-# 		param = svm_parameter('-t 2 -c 1 -g 0.05')
-# 		m = svm_train(prob, param)
-# 		models.append((m,i,j))	
-# labels = []
+labels = []
+labels2 = []
+for i in range(10):
+	for j in range(i+1,10):
+		print i, ",",j,":- "
+		gamma = 0.05
+		x_a, y_a = dual_class(x_train, y_train, i, j)
+		alphas, non_zeros, b = fit_gaussian(x_a, y_a, 1.0, gamma)
+		start = time.time()
+		labels.append((prediction_gaussian(x_a,y_a,b,alphas,non_zeros,gamma, x_train, y_train),i,j))
+		end = time.time()
+		print (end - start)
 # for m in models:
 # 	p_label, p_acc, p_val = svm_predict(y_train,x_train, m[0])
 # 	labels.append((p_label,m[1],m[2]))
-# pred_y = []
-# for i in range(len(x_train)):
-# 	w = [0 for j in range(10)]
-# 	for x in labels:
-# 		if (x[0][i] == 1):
-# 			w[x[2]] += 1
-# 		else:
-# 			w[x[1]] += 1
-# 	pred_y.append(w.index(max(w)))
-# cnt = 0
-# for i in range(len(x_train)):
-# 	if (y_train[i] == pred_y[i]):
-# 		cnt += 1
-# print "The accuracy over the training set is", float(cnt)/len(x_train)
-# labels = []
+print ("Reached here")
+pred_y = []
+scores = [0 for j in range(10)]
+for x in labels:
+	if (x[0][i] == 1):
+		scores[x[2]] += 1
+	else:
+		scores[x[1]] += 1
+for i in range(len(x_train)):
+	w = [0 for j in range(10)]
+	for x in labels:
+		if (x[0][i] == 1):
+			w[x[2]] += 1
+		else:
+			w[x[1]] += 1
+	to_find = max(w)
+	matnow = -1
+	ind = -1
+	for i in range(len(w)):
+		if ((w[i] == to_find) and (scores[i] > matnow)):
+			matnow = scores[i]
+			ind = i
+	# pred_y.append(w.index(max(w)))
+	pred_y.append(ind)
+cnt = 0
+for i in range(len(x_train)):
+	if (y_train[i] == pred_y[i]):
+		cnt += 1
+print "The accuracy over the training set is", float(cnt)/len(x_train)
 # for m in models:
 # 	p_label, p_acc, p_val = svm_predict(y_test,x_test, m[0])
-# 	labels.append((p_label,m[1],m[2]))
-# pred_y = []
-# for i in range(len(x_test)):
-# 	w = [0 for j in range(10)]
-# 	for x in labels:
-# 		if (x[0][i] == 1):
-# 			w[x[2]] += 1
-# 		else:
-# 			w[x[1]] += 1
-# 	pred_y.append(w.index(max(w)))
-# cnt = 0
-# for i in range(len(x_test)):
-# 	if (y_test[i] == pred_y[i]):
-# 		cnt += 1
-# print "The accuracy over the test set is", float(cnt)/len(x_test)
+# 	labels2.append((p_label,m[1],m[2]))
+pred_y = []
+scores = [0 for j in range(10)]
+for x in labels2:
+	if (x[0][i] == 1):
+		scores[x[2]] += 1
+	else:
+		scores[x[1]] += 1
+for i in range(len(x_test)):
+	w = [0 for j in range(10)]
+	for x in labels2:
+		if (x[0][i] == 1):
+			w[x[2]] += 1
+		else:
+			w[x[1]] += 1
+	to_find = max(w)
+	matnow = -1
+	ind = -1
+	for i in range(len(w)):
+		if ((w[i] == to_find) and (scores[i] > matnow)):
+			matnow = scores[i]
+			ind = i
+	# pred_y.append(w.index(max(w)))
+	pred_y.append(ind)
+cnt = 0
+for i in range(len(x_test)):
+	if (y_test[i] == pred_y[i]):
+		cnt += 1
+print "The accuracy over the test set is", float(cnt)/len(x_test)
 
 #Q2b
-trainingSet_x, validationSet_x, trainingSet_y, validationSet_y = train_test_split(x_train, y_train, test_size=0.1)
-start = time.time()
-prob  = svm_problem(trainingSet_y, trainingSet_x)
-for c in [10**(-5),10**(-3),1,5,10]:
-	print "Checking for c = "+str(c)
-	param = svm_parameter('-t 2 -c '+str(c)+' -g 0.05')
-	m = svm_train(prob, param)
-	print "Validation set: "
-	p_label, p_acc, p_val = svm_predict(validationSet_y, validationSet_x, m)
-	print "Test set: "
-	p_label, p_acc, p_val = svm_predict(y_test, x_test, m)
-# print "Confusion Matrix:"
-end = time.time()
-print (end - start)
-print (confusion_matrix(y_test,p_label))
+# trainingSet_x, validationSet_x, trainingSet_y, validationSet_y = train_test_split(x_train, y_train, test_size=0.1)
+# start = time.time()
+# prob  = svm_problem(trainingSet_y, trainingSet_x)
+# for c in [10**(-5),10**(-3),1,5,10]:
+# 	print "Checking for c = "+str(c)
+# 	param = svm_parameter('-t 2 -c '+str(c)+' -g 0.05')
+# 	m = svm_train(prob, param)
+# 	print "Validation set: "
+# 	p_label, p_acc, p_val = svm_predict(validationSet_y, validationSet_x, m)
+# 	print "Test set: "
+# 	p_label, p_acc, p_val = svm_predict(y_test, x_test, m)
+# # print "Confusion Matrix:"
+# end = time.time()
+# print (end - start)
+# print (confusion_matrix(y_test,p_label))
 

@@ -29,7 +29,7 @@ m = len(y)
 if (stopwords):
 	analyzer = CountVectorizer(stop_words = "english").build_analyzer()
 else:
-	analyzer = CountVectorizer(ngram_range=(1,1)).build_analyzer()
+	analyzer = CountVectorizer(ngram_range=(1,2)).build_analyzer()
 vocab = {}
 start = time.time()
 x = [analyzer(i) for i in x]
